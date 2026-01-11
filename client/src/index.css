@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-body: 'Outfit', sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+
+  /* Dark Theme Base */
+  --background: 222 47% 11%;     /* Deep Slate */
+  --foreground: 210 40% 98%;     /* White-ish */
+
+  /* Neon Cyan Primary */
+  --primary: 183 100% 50%;       /* #00f3ff */
+  --primary-foreground: 222 47% 11%;
+
+  /* Muted / Secondary */
+  --secondary: 217 33% 17%;      /* Lighter Slate */
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+
+  --accent: 183 100% 50%;
+  --accent-foreground: 222 47% 11%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 217 33% 20%;
+  --input: 217 33% 20%;
+  --ring: 183 100% 50%;
+  
+  --radius: 0.75rem;
+}
+
+@layer utilities {
+  .neon-rgb-text {
+    animation: neon-rgb 5s linear infinite;
+    text-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+  }
+
+  @keyframes neon-rgb {
+    0%, 100% { color: #00f3ff; }
+    33% { color: #ff00ff; }
+    66% { color: #ffff00; }
+  }
+
+  .neon-rgb-border {
+    animation: neon-rgb-border 5s linear infinite;
+    box-shadow: 0 0 15px currentColor;
+  }
+
+  @keyframes neon-rgb-border {
+    0%, 100% { border-color: #00f3ff; color: #00f3ff; }
+    33% { border-color: #ff00ff; color: #ff00ff; }
+    66% { border-color: #ffff00; color: #ffff00; }
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px hsl(var(--primary) / 0.5);
+  }
+  .box-glow {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.15);
+  }
+  .box-glow-hover:hover {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.3);
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    @apply font-bold tracking-tight;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-background;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-primary/20 rounded-full hover:bg-primary/40 transition-colors;
+}

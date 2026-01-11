@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Videó lejátszó — Ellenőrzés és fallback</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#111827; --muted:#9ca3af; --accent:#3b82f6;
+      --maxw:900px;
+    }
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+      background:linear-gradient(180deg, #021028 0%, #071833 100%); color:#e6eef8;
+      display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px;
+    }
+    .container{ width:100%; max-width:var(--maxw); }
+    .card{ background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04); padding:20px; border-radius:12px; box-shadow:0 6px 30px rgba(2,6,23,0.6);
+    }
+    header{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+    h1{ font-size:18px; margin:0; }
+    .meta{ color:var(--muted); font-size:13px; }
+    .player-wrap{ display:grid; grid-template-columns:1fr 300px; gap:18px; align-items:start; }
+    @media(max-width:900px){ .player-wrap{ grid-template-columns:1fr; } }
+    video, iframe{ width:100%; border-radius:8px; background:#000; max-height:60vh; }
+    .sidebar{ background:rgba(255,255,255,0.02); padding:12px; border-radius:8px; min-height:120px; color:var(--muted); }
+    label{ display:block; font-size:13px; margin-bottom:6px; color:var(--muted); }
+    input[type="text"]{ width:100%; padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit; }
+    .btn{ display:inline-block; padding:8px 12px; background:var(--accent); color:white; border-radius:8px; text-decoration:none; border:none; cursor:pointer; font-weight:600; }
+    .btn.ghost{ background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--muted); }
+    .status{ margin-top:10px; font-size:13px; color:var(--muted); }
+    pre{ white-space:pre-wrap; word-break:break-word; font-size:13px; color:#d1e6ff; background:rgba(255,255,255,0.02); padding:10px; border-radius:6px; max-height:220px; overflow:auto; }
+    .small{ font-size:12px; color:var(--muted); }
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <header>
+        <div>
+          <h1>Videó lejátszó — Ellenőrzés és fallback</h1>
+          <div class="meta">Illeszd be a videó (MP4/WEBM) URL-jét, vagy használd az iframe fallbacket.</div>
+        </div>
+        <div class="meta small">Tippek: CORS hibák esetén használd a host beállításait vagy proxy-t.</div>
+      </header>
+
+      <div style="margin-bottom:12px;">
+        <label for="videoUrl">Videó URL</label>
+        <input id="videoUrl" type="text" placeholder="https://example.com/video.mp4" />
+      </div>
+
+      <div class="player-wrap">
+        <div>
+          <video id="videoPlayer" controls playsinline preload="metadata" poster="" crossorigin="anonymous">
+            Your browser does not support the video tag.
+          </video>
+
+          <div id="iframeContainer" style="display:none; margin-top:12px;">
+            <label>Iframe fallback</label>
+            <iframe id="videoIframe" src="" frameborder="0" allowfullscreen style="min-height:260px"></iframe>
+          </div>
+
+          <div class="status" id="statusMessage">Állapot: várakozás URL-re…</div>
+        </div>
+
+        <aside class="sidebar">
+          <div>
+            <label for="posterUrl">Poster kép (opcionális)</label>
+            <input id="posterUrl" type="text" placeholder="https://example.com/poster.jpg" />
+          </div>
+
+          <div style="margin-top:10px;">
+            <label for="method">Művelet</label>
+            <div class="controls">
+              <button id="loadBtn" class="btn">Betöltés</button>
+              <button id="testCORS" class="btn ghost">CORS ellenőrzés</button>
+              <button id="useIframe" class="btn ghost">Iframe fallback</button>
+              <a id="downloadBtn" class="btn ghost" href="#" download style="display:none">Letöltés</a>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <label>Fejléc információk</label>
+            <pre id="headersOutput">Nincsenek adatok.</pre>
+          </div>
+
+          <div style="margin-top:10px;">
+            <label>KonzoI</label>
+            <pre id="logOutput">Konzol készen áll.</pre>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const videoUrlInput = document.getElementById('videoUrl');
+    const posterInput = document.getElementById('posterUrl');
+    const loadBtn = document.getElementById('loadBtn');
+    const testCORSBtn = document.getElementById('testCORS');
+    const useIframeBtn = document.getElementById('useIframe');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    const videoPlayer = document.getElementById('videoPlayer');
+    const iframeContainer = document.getElementById('iframeContainer');
+    const videoIframe = document.getElementById('videoIframe');
+
+    const statusMessage = document.getElementById('statusMessage');
+    const headersOutput = document.getElementById('headersOutput');
+    const logOutput = document.getElementById('logOutput');
+
+    function log(msg){
+      const time = new Date().toLocaleTimeString();
+      logOutput.textContent = `[${time}] ${msg}\n` + logOutput.textContent;
+      console.log(msg);
+    }
+
+    function setStatus(msg, isError=false){
+      statusMessage.textContent = 'Állapot: ' + msg;
+      statusMessage.style.color = isError ? '#ffb4b4' : '';
+    }
+
+    function resetUI(){
+      iframeContainer.style.display = 'none';
+      videoIframe.src = '';
+      videoPlayer.pause();
+      videoPlayer.removeAttribute('src');
+      while (videoPlayer.firstChild) videoPlayer.removeChild(videoPlayer.firstChild);
+      headersOutput.textContent = 'Nincsenek adatok.';
+      downloadBtn.style.display = 'none';
+    }
+
+    async function tryLoadVideo(url){
+      resetUI();
+      setStatus('Betöltés: ellenőrzés folyamatban…');
+      log('Próbálkozás betöltéssel: ' + url);
+
+      // beállítjuk a poster, ha van
+      const poster = posterInput.value.trim();
+      if(poster) videoPlayer.setAttribute('poster', poster);
+      else videoPlayer.removeAttribute('poster');
+
+      // Alapvető fetch HEAD ellenőrzés (CORS fejlécek lekérése)
+      try{
+        const headResp = await fetch(url, { method: 'HEAD' });
+        log('HEAD státusz: ' + headResp.status);
+        const ct = headResp.headers.get('content-type') || '–';
+        const cl = headResp.headers.get('content-length') || '–';
+        const acceptRanges = headResp.headers.get('accept-ranges') || '–';
+        headersOutput.textContent = `status: ${headResp.status}\ncontent-type: ${ct}\ncontent-length: ${cl}\naccept-ranges: ${acceptRanges}\n\nfull headers:\n` + [...headResp.headers.entries()].map(h=>h.join(': ')).join('\n');
+
+        if (headResp.ok && ct.startsWith('video/')){
+          // próbáljuk meg betenni a source elemet
+          const source = document.createElement('source');
+          source.src = url;
+          source.type = ct;
+          videoPlayer.appendChild(source);
+          videoPlayer.load();
+          setStatus('A videó betöltve — próbáld lejátszani.');
+          downloadBtn.style.display = 'inline-block';
+          downloadBtn.href = url;
+          log('Videó betöltve a <video> elembe.');
+        } else {
+          setStatus('A HEAD válasz nem video tartalmat jelez, iframe fallback javasolt.', true);
+          log('HEAD nem video (vagy hibás). Használd az iframe-t fallbackként.');
+          iframeContainer.style.display = 'block';
+          videoIframe.src = url;
+        }
+      } catch (err){
+        // Ha a HEAD fetch CORS miatt elutasítva van, megpróbáljuk sima set src-re tenni
+        log('HEAD fetch hiba: ' + err);
+        setStatus('CORS vagy hálózati hiba a HEAD kéréssel — megpróbáljuk a közvetlen <video> betöltést.', true);
+        try {
+          const source = document.createElement('source');
+          // jelöljük meg, hogy nem tudjuk a content-type-ot
+          source.src = url;
+          videoPlayer.appendChild(source);
+          videoPlayer.load();
+          setStatus('Próbálkozás közvetlen <video> betöltéssel. Ha nem működik, használd az iframe fallbacket.', true);
+          downloadBtn.style.display = 'inline-block';
+          downloadBtn.href = url;
+        } catch(e){
+          log('Közvetlen betöltés sikertelen: ' + e);
+          iframeContainer.style.display = 'block';
+          videoIframe.src = url;
+          setStatus('Nem sikerült betölteni a videót, iframe fallback megjelenítve.', true);
+        }
+      }
+    }
+
+    loadBtn.addEventListener('click', () => {
+      const url = videoUrlInput.value.trim();
+      if(!url){ setStatus('Adj meg egy videó URL-t.', true); return; }
+      tryLoadVideo(url);
+    });
+
+    testCORSBtn.addEventListener('click', async () => {
+      const url = videoUrlInput.value.trim();
+      if(!url){ setStatus('Adj meg egy videó URL-t a CORS teszthez.', true); return; }
+      setStatus('CORS ellenőrzés: próbálok HEAD-et küldeni…');
+      log('CORS teszt indítva a ' + url);
+      try {
+        const resp = await fetch(url, { method: 'HEAD' });
+        setStatus('HEAD sikeres: státusz ' + resp.status);
+        headersOutput.textContent = [...resp.headers.entries()].map(h=>h.join(': ')).join('\n');
+        log('HEAD sikeres, header-ek kiírva.');
+      } catch (err){
+        setStatus('CORS vagy hálózati hiba a HEAD kéréssel — nézd meg a konzolt.', true);
+        log('HEAD kérés hiba: ' + err);
+      }
+    });
+
+    useIframeBtn.addEventListener('click', () => {
+      const url = videoUrlInput.value.trim();
+      if(!url){ setStatus('Adj meg egy URL-t az iframe-hez.', true); return; }
+      iframeContainer.style.display = 'block';
+      videoIframe.src = url;
+      setStatus('Iframe fallback megjelenítve.');
+      log('Iframe fallback engedélyezve: ' + url);
+    });
+
+    // gyors példaérték betöltéshez (távolítható)
+    // videoUrlInput.value = 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+  </script>
+</body>
+</html>
